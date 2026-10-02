@@ -1,24 +1,75 @@
 # Forbidden Memories — DeepDream Community Duel Mods
 
-This branch adds four optional mods by **deepdream and Codex**: **Duel Options**,
-**Tag Duels** (including configurable Tag Rewards), **Duel Portraits** and
-**NEW Card Markers**. It is a community beta, not an official Unchiga release.
+Customize Free Duels, play two against two, and bring character portraits into
+battle. Four optional mods by **deepdream and Codex**, built on
+[Unchiga's Forbidden Memories Recompiled](https://github.com/Unchiga/Yu-Gi-Oh-Forbidden-Memories-Recompiled).
 
-The tested **beta 5** requires the companion host based on **v0.1.4-preview.2**,
-commit `759465ed4986714f47513da648087c9f5567d18a`. The required support changes
-are included in this branch; stock, Linux and future-host compatibility are
-not certified. Supply your own USA SLUS-01411 disc; no disc/assets/saves included.
+**[Download Beta 5 for Windows](https://github.com/DreamWatching/Yu-Gi-Oh-Forbidden-Memories-Recompiled-DeepDream/releases/download/community-duel-mods-beta5/community-duel-mods-beta5-windows-preview2.zip)**
+ · [Release notes and other downloads](https://github.com/DreamWatching/Yu-Gi-Oh-Forbidden-Memories-Recompiled-DeepDream/releases/tag/community-duel-mods-beta5)
+ · [Every mod and option](notes/community-duel-mods/MOD_GUIDE.md)
 
-- [Every mod and option](notes/community-duel-mods/MOD_GUIDE.md)
-- [Build and run the regression checks](notes/community-duel-mods/BUILD.md)
-- [Maintainer review map and validation](notes/community-duel-mods/MAINTAINER_REVIEW.md)
-- [Publishing guide](notes/community-duel-mods/PUBLISHING.md)
-- [Original project](https://github.com/Unchiga/Yu-Gi-Oh-Forbidden-Memories-Recompiled)
+This is a **community beta** for the supplied Windows companion build, based on
+**v0.1.4-preview.2**. Bring your own USA **SLUS-01411** disc image; game data and
+personal saves are not included. It is not an official upstream release.
 
-The original upstream README follows. Its download/build instructions describe
-upstream; use the community guide above for this beta.
+## A look inside
 
----
+![Native single-duel Battle Rules menu with character portrait and textured scrollbar](docs/screenshots/community-duel-mods/beta5-free-duel-rules.png)
+
+*The single-duel rules screen uses the game's font, portraits, stone borders and
+scrollbar. Tag Duels adds partner and rival selection to the same Free Duel flow.*
+
+## What's included
+
+| Mod | What it adds |
+|---|---|
+| **Duel Options** | Starting LP from 4,000 to 20,000; selected or random terrain; recurring animated field changes; 5/20-card CPU search; Guardian Star Face-off to choose who starts; named deck recipes. |
+| **Tag Duels** | Two teams sharing LP and a field, with four private decks and hands. Choose a CPU or human partner, temporarily edit their signature deck, and use team-scaled ranking. **Tag Rewards** is an included, default-on setting. |
+| **Duel Portraits** | Active/waiting portrait panels with names, control labels and hand/deck counts, for campaign, Free Duel, two-player and tag battles. |
+| **NEW Card Markers** | Mark every genuinely new reward card during the current session, beyond the original recent-card list. Duplicate rewards do not get a new badge. |
+
+Enable each mod independently in **Game > Mods**. **Tag Duels requires Duel
+Options**; Portraits and NEW Card Markers are optional. Opponent Draw Hand
+changes how many cards the CPU searches, **not** its five visible hand slots.
+
+## Start playing
+
+1. Download the **Windows** ZIP linked above. It contains the companion executable
+   and all four mods; you do not need the individual mod ZIPs.
+2. Extract it into a **new folder**, run `memories-pc.exe`, and select your USA disc image.
+3. Open **Game > Mods** (press **F10** if the menu bar is hidden). Enable **Duel
+   Options** and the other mods you want. Tag Rewards is under **Tag Duels > Settings**.
+4. Load a normal campaign save and select **Free Duel**. Choose an opponent for
+   single-duel rules, or use the **Triangle** duel-type prompt when Tag Duels is enabled.
+
+Back up your saves before moving them between installations. Keep PC save states
+with their original build. Individual mod ZIPs require this companion host;
+installing them on a stock executable is not supported by this beta.
+
+## Guides and development
+
+- [Complete features, rules, controls and compatibility](notes/community-duel-mods/MOD_GUIDE.md)
+- [Build from source](notes/community-duel-mods/BUILD.md)
+- [Maintainer review: files changed, tests and limitations](notes/community-duel-mods/MAINTAINER_REVIEW.md)
+- [Integration proposal for Unchiga](https://github.com/Unchiga/Yu-Gi-Oh-Forbidden-Memories-Recompiled/issues/234)
+- [Report a bug](https://github.com/DreamWatching/Yu-Gi-Oh-Forbidden-Memories-Recompiled-DeepDream/issues)
+
+The 15 community logic suites and the Windows/Linux foundation and sanitizer
+checks pass. Linux **gameplay**, physical controllers, every GPU/HD combination
+and future upstream versions still need broader acceptance testing. This beta
+is not a promise of 200 displayed FPS at 400% speed.
+
+For code changes, use **community-duel-mods-beta5-source.zip** from the
+[release](https://github.com/DreamWatching/Yu-Gi-Oh-Forbidden-Memories-Recompiled-DeepDream/releases/tag/community-duel-mods-beta5) or clone this **community-duel-mods-beta5** branch. The
+source includes the corrected foundation test fixtures. Source-only review and
+test changes do not replace the previously playtested Windows game binaries.
+
+Original project and MIT notices are retained. Game content belongs to its
+respective owners. The upstream README below describes the original project;
+use the community download and guides above for these mods.
+
+<details>
+<summary><strong>Original Forbidden Memories Recompiled README</strong></summary>
 
 # Yu-Gi-Oh! Forbidden Memories Recompiled
 
@@ -121,3 +172,5 @@ The PC port (`src/pc/`, `tools/pc/`, `tests/pc/`, `mods/`, `examples/` and the b
 and play scripts) is [MIT](LICENSE): keep the copyright notice and please link back
 here. The decompilation builds on [memories-decomp](https://github.com/krystalgamer/memories-decomp)
 by its authors. Yu-Gi-Oh! and Forbidden Memories belong to Konami.
+
+</details>

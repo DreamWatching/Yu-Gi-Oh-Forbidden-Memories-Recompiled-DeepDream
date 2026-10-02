@@ -36,6 +36,7 @@ a disc, extracted images/audio, personal saves, tmp build outputs or logs with
 machine paths. Keep the upstream MIT notices and link back to the project.
 
 Linux and unknown future/stock hosts are not certified by this beta. GitHub
-Actions runs the Windows disc-free checks; ROM-dependent gameplay and physical
-controllers need local testing. A new compiler/host build needs its own native
+Actions runs the Windows community logic checks plus Windows/Linux foundation
+and Linux sanitizer checks. Linux gameplay, ROM-dependent behavior and physical
+controllers still need local testing. A new compiler/host build needs its own native
 acceptance before being offered as a replacement player download.
