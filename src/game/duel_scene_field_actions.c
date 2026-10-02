@@ -171,7 +171,13 @@ void DuelScene_UpdateFieldActions(void)
         k = flags & 0xF;
         switch (k) {
         case 0:
+#ifdef MEMORIES_PC
+            /* Enforce the native opening-turn rule before any AI hook.
+             * Planning mods must not bypass it when side 1 opens the duel. */
+            a = (D_8009B16C & 0x1000) ? 3 : AiScript_Run();
+#else
             a = AiScript_Run();
+#endif
             if (a == 0) {
                 return;
             }

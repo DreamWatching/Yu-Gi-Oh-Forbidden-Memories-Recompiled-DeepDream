@@ -1,6 +1,8 @@
 /* View > Duel rank's numbers (rank.h): Duel_CalcRankScore's sum, read-only. */
 #include "rank.h"
 #include "game/duel_rank.h"
+#include "pc/mods/events.h"
+#include "pc/cards/tables.h"
 
 #define RANK_RULE_COUNT 10
 
@@ -9,6 +11,8 @@
  * run when that happens inside the ten rows. */
 static int change(int rule, int value, int *known)
 {
+    /* Configured preview rows have their own bounded walk. */
+    if (Tables_Rank(rule)) return Duel_CalcRankScoreChange(rule, value);
     const DuelRankScoreChangeEntry *entry = &gDuel_awRankScoreChange[rule][0];
     const DuelRankScoreChangeEntry *end = &gDuel_awRankScoreChange[RANK_RULE_COUNT - 1][DUEL_RANK_SCORE_THRESHOLD_COUNT];
     for (; entry < end; entry++)
@@ -17,9 +21,23 @@ static int change(int rule, int value, int *known)
     return 0;
 }
 
+void Rank_ProjectSide(const DuelSideState *side, DuelSideState *out)
+{
+    typedef int (*Project)(const DuelSideState *, DuelSideState *);
+    Project project = (Project)Mods_Find("tag-duel-menu:rank_side_v1");
+    DuelSideState view = *side;
+    if (project && project(side, &view)) { *out = view;return; }
+    project=(Project)Mods_Find("duel-options:rank_side_v1");
+    if (project && project(side,&view)) *out=view;
+    else *out=*side;
+}
+
 int Rank_Score(const DuelSideState *side, int adjustment)
 {
+    DuelSideState view;
     int known = 1, score = DUEL_RANK_SCORE_INITIAL + adjustment;
+    Rank_ProjectSide(side, &view);
+    side = &view;
     score += change(DUEL_RANK_RULE_CARDS_USED, side->deck_draw_cursor, &known);
     score += change(DUEL_RANK_RULE_REMAINING_LP, side->life_points.signed_value, &known);
     score += change(DUEL_RANK_RULE_EFFECTIVE_ATTACKS, side->rank.effective_attacks, &known);

@@ -32,6 +32,7 @@
 #include "events.h"
 #include "hooks.h"
 #include "pc/platform/paths.h"
+#include "pc/cards/fusion_helper.h"
 #include "pc/platform/settings.h"
 #include "pc/platform/platform.h"
 #include "pc/platform/menu.h"
@@ -422,6 +423,38 @@ static struct {
     int x0, y0, x1, y1;   /* what the mods drew, to report as the overlay's bounds */
 } overlay;
 
+/* Optional fixed-height drawing surface for game menus. Rasterize at their
+ * design resolution, then scale uniformly; window size must not change layout. */
+static MenuCanvas logical_canvas;
+static MenuCanvas *physical_canvas;
+static uint32_t *logical_pixels;
+static size_t logical_capacity;
+static int logical_x, logical_y, logical_w, logical_h;
+int ModMenu_BeginLogicalOverlay(int height)
+{
+    size_t count;
+    int width;
+    if (!overlay.canvas || physical_canvas || height < 1) return 0;
+    FusionHelper_GetViewport(&logical_x, &logical_y, &logical_w, &logical_h);
+    if (logical_w <= 0 || logical_h <= 0) {
+        logical_x = logical_y = 0;
+        logical_w = overlay.canvas->width; logical_h = overlay.canvas->height;
+    }
+    width = logical_w * height / logical_h;
+    count = (size_t)width * height;
+    if (count > logical_capacity) {
+        uint32_t *pixels = realloc(logical_pixels, count * sizeof(*pixels));
+        if (!pixels) return 0;
+        logical_pixels = pixels; logical_capacity = count;
+    }
+    memset(logical_pixels, 0, count * sizeof(*logical_pixels));
+    physical_canvas = overlay.canvas;
+    logical_canvas = (MenuCanvas){logical_pixels, width, width, height, 1};
+    overlay.canvas = &logical_canvas;
+    return 1;
+}
+void ModMenu_EndLogicalOverlay(void);
+
 static void overlay_touch(int x, int y, int w, int h)
 {
     int x1 = x + w, y1 = y + h;
@@ -476,6 +509,76 @@ static void host_fill(const MemoriesModHost *host, int x, int y, int w, int h, u
         }
     }
     overlay_touch(x, y, w, h);
+}
+
+void ModMenu_DrawPixelsV1(const MemoriesModHost *host, int x, int y, int w, int h,
+                             const uint32_t *argb, int source_w, int source_h,
+                             unsigned brightness, unsigned alpha)
+{
+    MenuCanvas *canvas = overlay.canvas;
+    int row, column;
+    if (!owner(host) || !canvas || !argb || w <= 0 || h <= 0 ||
+        source_w <= 0 || source_h <= 0 || !alpha) return;
+    if (alpha > 255) alpha = 255;
+    if (brightness > 255) brightness = 255;
+    /* Fixed-point sampling removes a 64-bit divide for every output pixel. */
+    for (row = y < 0 ? 0 : y; row < y + h && row < canvas->height; row++) {
+        int source_y = (int)((long long)(row - y) * source_h / h);
+        uint64_t step = (((uint64_t)source_w << 32) + w - 1) / w;
+        uint64_t sample = (uint64_t)((x < 0 ? 0 : x) - x) * step;
+        for (column = x < 0 ? 0 : x; column < x + w && column < canvas->width; column++) {
+            int source_x = (int)(sample >> 32);
+            sample += step;
+            uint32_t source = argb[(size_t)source_y * source_w + source_x];
+            uint32_t *pixel;
+            unsigned source_alpha, inverse, under, r, g, b, a;
+            source_alpha = (source >> 24) * alpha / 255;
+            if (!source_alpha) continue;
+            r = (source >> 16 & 255) * brightness / 255;
+            g = (source >> 8 & 255) * brightness / 255;
+            b = (source & 255) * brightness / 255;
+            pixel = canvas->pixels + (size_t)row * canvas->stride + column;
+            under = *pixel;
+            if (source_alpha == 255 && brightness == 255) {
+                *pixel = source;
+                continue;
+            }
+            inverse = 255 - source_alpha;
+            r = (r * source_alpha + (under >> 16 & 255) * inverse) / 255;
+            g = (g * source_alpha + (under >> 8 & 255) * inverse) / 255;
+            b = (b * source_alpha + (under & 255) * inverse) / 255;
+            a = source_alpha + (under >> 24) * inverse / 255;
+            *pixel = a << 24 | r << 16 | g << 8 | b;
+        }
+    }
+    overlay_touch(x, y, w, h);
+}
+
+void ModMenu_EndLogicalOverlay(void)
+{
+    int row, column;
+    uint64_t step;
+    if (!physical_canvas) return;
+    overlay.canvas = physical_canvas;
+    physical_canvas = NULL;
+    step = (((uint64_t)logical_canvas.width << 32) + logical_w - 1) / logical_w;
+    for (row = 0; row < logical_h && row + logical_y < overlay.canvas->height; row++) {
+        const uint32_t *src = logical_pixels +
+            (size_t)(row * logical_canvas.height / logical_h) * logical_canvas.width;
+        uint32_t *dst = overlay.canvas->pixels + (size_t)(row + logical_y) * overlay.canvas->stride + logical_x;
+        uint64_t sample = 0;
+        for (column = 0; column < logical_w && column + logical_x < overlay.canvas->width; column++, sample += step) {
+            uint32_t over = src[sample >> 32], under = dst[column];
+            unsigned a = over >> 24, inv = 255 - a;
+            if (!a) continue;
+            if (a == 255) { dst[column] = over; continue; }
+            dst[column] = (a + (under >> 24) * inv / 255) << 24 |
+                (((over >> 16 & 255) * a + (under >> 16 & 255) * inv) / 255) << 16 |
+                (((over >> 8 & 255) * a + (under >> 8 & 255) * inv) / 255) << 8 |
+                ((over & 255) * a + (under & 255) * inv) / 255;
+        }
+    }
+    overlay_touch(logical_x, logical_y, logical_w, logical_h);
 }
 
 void Mods_DrawOverlay(MenuCanvas *canvas, int scale, void (*text)(MenuCanvas *, int, int, const char *, uint32_t, int),

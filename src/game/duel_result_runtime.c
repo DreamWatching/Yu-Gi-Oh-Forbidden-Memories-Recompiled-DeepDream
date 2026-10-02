@@ -50,6 +50,7 @@
 #include "pc/cards/cards.h"
 #include "pc/cards/tables.h"
 #include "pc/cards/drops.h"
+#include "pc/cards/rank.h"
 #endif
 
 #define DUEL_RESULT_ORBIT_ANGLE_STEP 0x30
@@ -458,45 +459,55 @@ void Duel_CalcRankScore(void) {
     p->side_scores[1] = DUEL_RANK_SCORE_INITIAL;
     p->side_scores[0] = DUEL_RANK_SCORE_INITIAL;
     for (i = 0; i < DUEL_SIDE_COUNT; i++, e++, q++) {
+#ifdef MEMORIES_PC
+        const DuelSideState *scoring;
+        DuelSideState projected;
+        Rank_ProjectSide(e, &projected);
+        scoring = &projected;
+#define RANK_VALUE(member) scoring->member
+#else
+#define RANK_VALUE(member) v
+#endif
         p->side_scores[i] += e->rank.result_adjustment;
         v = e->deck_draw_cursor; q[0 * DUEL_SIDE_COUNT] = v;
         p->side_scores[i] +=
-            Duel_CalcRankScoreChange(DUEL_RANK_RULE_CARDS_USED, v);
+            Duel_CalcRankScoreChange(DUEL_RANK_RULE_CARDS_USED, RANK_VALUE(deck_draw_cursor));
         v = e->life_points.signed_value; q[1 * DUEL_SIDE_COUNT] = v;
         p->side_scores[i] +=
-            Duel_CalcRankScoreChange(DUEL_RANK_RULE_REMAINING_LP, v);
+            Duel_CalcRankScoreChange(DUEL_RANK_RULE_REMAINING_LP, RANK_VALUE(life_points.signed_value));
         q[2 * DUEL_SIDE_COUNT] = e->field_0E;
         q[3 * DUEL_SIDE_COUNT] = e->rank.field_0B;
         v = e->rank.effective_attacks; q[4 * DUEL_SIDE_COUNT] = v;
         p->side_scores[i] +=
-            Duel_CalcRankScoreChange(DUEL_RANK_RULE_EFFECTIVE_ATTACKS, v);
+            Duel_CalcRankScoreChange(DUEL_RANK_RULE_EFFECTIVE_ATTACKS, RANK_VALUE(rank.effective_attacks));
         q[5 * DUEL_SIDE_COUNT] = e->field_10;
         q[6 * DUEL_SIDE_COUNT] = e->rank.field_0C;
         v = e->rank.defensive_wins; q[7 * DUEL_SIDE_COUNT] = v;
         p->side_scores[i] +=
-            Duel_CalcRankScoreChange(DUEL_RANK_RULE_DEFENSIVE_WINS, v);
+            Duel_CalcRankScoreChange(DUEL_RANK_RULE_DEFENSIVE_WINS, RANK_VALUE(rank.defensive_wins));
         q[8 * DUEL_SIDE_COUNT] = e->rank.field_07;
         v = e->rank.face_down_plays; q[9 * DUEL_SIDE_COUNT] = v;
         p->side_scores[i] +=
-            Duel_CalcRankScoreChange(DUEL_RANK_RULE_FACE_DOWN_PLAYS, v);
+            Duel_CalcRankScoreChange(DUEL_RANK_RULE_FACE_DOWN_PLAYS, RANK_VALUE(rank.face_down_plays));
         v = e->rank.fusions_initiated; q[10 * DUEL_SIDE_COUNT] = v;
         p->side_scores[i] +=
-            Duel_CalcRankScoreChange(DUEL_RANK_RULE_INITIATE_FUSION, v);
+            Duel_CalcRankScoreChange(DUEL_RANK_RULE_INITIATE_FUSION, RANK_VALUE(rank.fusions_initiated));
         v = e->rank.equips_used; q[11 * DUEL_SIDE_COUNT] = v;
         p->side_scores[i] +=
-            Duel_CalcRankScoreChange(DUEL_RANK_RULE_EQUIP_MAGIC, v);
+            Duel_CalcRankScoreChange(DUEL_RANK_RULE_EQUIP_MAGIC, RANK_VALUE(rank.equips_used));
         q[12 * DUEL_SIDE_COUNT] = e->rank.field_0A;
         v = e->rank.pure_magic_used; q[13 * DUEL_SIDE_COUNT] = v;
         p->side_scores[i] +=
-            Duel_CalcRankScoreChange(DUEL_RANK_RULE_PURE_MAGIC, v);
+            Duel_CalcRankScoreChange(DUEL_RANK_RULE_PURE_MAGIC, RANK_VALUE(rank.pure_magic_used));
         v = e->rank.traps_triggered; q[14 * DUEL_SIDE_COUNT] = v;
         p->side_scores[i] +=
-            Duel_CalcRankScoreChange(DUEL_RANK_RULE_TRAPS_TRIGGERED, v);
+            Duel_CalcRankScoreChange(DUEL_RANK_RULE_TRAPS_TRIGGERED, RANK_VALUE(rank.traps_triggered));
         v = e->rank.turns_taken; q[15 * DUEL_SIDE_COUNT] = v;
         p->side_scores[i] +=
-            Duel_CalcRankScoreChange(DUEL_RANK_RULE_TURNS, v);
+            Duel_CalcRankScoreChange(DUEL_RANK_RULE_TURNS, RANK_VALUE(rank.turns_taken));
     }
 }
+#undef RANK_VALUE
 
 s32 Duel_SelectCardDrop(s32 pool_index)
 {

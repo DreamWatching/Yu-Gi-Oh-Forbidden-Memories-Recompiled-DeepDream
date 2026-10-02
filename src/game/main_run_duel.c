@@ -84,6 +84,9 @@ void Main_RunDuel(void)
         }
         break;
     case 1:
+#ifdef MEMORIES_PC
+        if (DeckMenu_RepairSaveGate()) break;
+#endif
         if (!(value & 0x80)) {
             D_8009B26E = value | 0x80;
             Duel_InitScene();

@@ -13,6 +13,23 @@ struct MenuCanvas; /* pc/platform/menu.h */
 
 /* The menu item and F6. */
 void DeckMenu_Request(void);
+/* Open Deck Slots with `slot` highlighted for editing. Confirming a slot
+ * enters Build Deck and returns to the loaded-game menu when finished. */
+void DeckMenu_RequestEditSlot(int slot);
+/* Isolated NPC draft: never reconciled into player slots or saved inventory. */
+int DeckMenu_BeginTemporary(const unsigned short cards[40]);
+int DeckMenu_TakeTemporary(unsigned short cards[40]);
+int DeckMenu_TemporaryActive(void);
+void DeckMenu_CancelTemporary(void);
+int DeckMenu_PartnerRecipeInfo(int slot, char *name, size_t size);
+int DeckMenu_CopyPartnerRecipe(int slot, unsigned short cards[40]);
+int DeckMenu_SavePartnerRecipe(int slot, const char *name, const unsigned short cards[40]);
+/* 0: equip without mutation, returning missing count; 1: equip only owned
+ * copies, leaving holes. -1 rejects invalid decks or a chest overflow. */
+int DeckMenu_EquipOwnedRecipe(const unsigned short cards[40], int apply);
+int DeckMenu_SavePlayerRecipe(int slot);
+int DeckMenu_SavePlayerRecipeCards(int slot, const unsigned short cards[40]);
+int DeckMenu_RepairSaveGate(void);
 /* Esc while it is open closes it instead of the game. */
 int DeckMenu_Active(void);
 void DeckMenu_Close(void);
@@ -70,6 +87,17 @@ int DeckMenu_ShopListing(char *out, size_t size, const unsigned char *menu, cons
  * the active slot, when it is forty cards. */
 int DeckMenu_BuildDeckEntry(void);
 void DeckMenu_BuildDeckLeft(void);
+/* Copy one kept deck without making it the campaign deck. Tag duels use this
+ * for a partner's private deck. `slot` is zero based; returns 1 only for a
+ * complete saved slot. */
+int DeckMenu_CopySlot(int slot, unsigned short out[40]);
+/* Read the deck list's own descriptive label without opening its overlay.
+ * Returns 1 for an equippable slot, -1 for a used but unavailable slot,
+ * and 0 for an empty slot. */
+int DeckMenu_SlotInfo(int slot, char *label, size_t size);
+int DeckMenu_ActiveSlot(void);
+/* Equip a valid slot through the same chest/deck exchange as the deck list. */
+int DeckMenu_EquipSlot(int slot);
 /* The same for the chest Main_RunDuel opens before a campaign duel (its
  * step 0), only once F6 in that chest asked for it: Circle on the list keeps
  * the deck, and DeckMenu_DuelChestLeft

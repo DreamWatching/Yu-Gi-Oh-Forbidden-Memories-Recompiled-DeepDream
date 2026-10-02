@@ -339,12 +339,21 @@ void TextureDump_Moved(int sx, int sy, int dx, int dy, int w, int h)
 
 void TextureDump_Cleared(int x, int y, int w, int h)
 {
-    int i, j;
+    int j;
     if (!TextureDump_Tags) return;
     for (j = 0; j < h; j++) {
-        for (i = 0; i < w; i++) {
-            *tag_at(x + i, y + j) = 0;
-            if (TextureDump_Shadow) memset(TextureDump_Cell(x + i, y + j, 0), 0, 4 * sizeof(uint16_t));
+        int column = x & (SOFT_GPU_WIDTH - 1), remaining = w;
+        /* Clear contiguous rows rather than making one four-texel clear
+         * per word. Split at VRAM's edge to retain PS1 wrapping semantics. */
+        while (remaining > 0) {
+            int span = SOFT_GPU_WIDTH - column;
+            if (span > remaining) span = remaining;
+            memset(tag_at(column, y + j), 0, (size_t)span * sizeof(*TextureDump_Tags));
+            if (TextureDump_Shadow)
+                memset(TextureDump_Cell(column, y + j, 0), 0,
+                       (size_t)span * 4 * sizeof(*TextureDump_Shadow));
+            remaining -= span;
+            column = 0;
         }
     }
     if (TextureDump_Forget) TextureDump_Forget(x, y, w, h);

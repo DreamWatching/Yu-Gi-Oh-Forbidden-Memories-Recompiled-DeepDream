@@ -24,6 +24,8 @@
  * cells. So the same letter stands in the same place in the same colours,
  * finer. */
 #include "hd_text.h"
+#include "pc/mods/events.h"
+#include <stdio.h>
 #include "glyphs.h"
 #include "serif.h"
 #include "text.h"
@@ -1604,9 +1606,9 @@ static int make_label(const uint16_t *words, const Label *l, unsigned char texel
 static const struct {
     int label, top, column, row, room; /* panel_labels[label]; its box's first row; the picture's cell; texels */
 } name_boxes[2] = {{1, 9, 0, 3, 64}, {2, 21, 24, 0, 64}};
-static int name_duelist, name_width[2];
+static int name_width[2];
 static unsigned name_made[2];
-static char name_player[16];
+static char name_player[64], name_opponent[64];
 
 /* The player's name as the save has it (SaveSlots_StateName), else You. */
 const char *HdText_PlayerName(void)
@@ -1708,20 +1710,22 @@ int HdText_NameBox(int wanted, int which, int *atlas_u, int *atlas_v, int *x, in
         return 0;
     }
     if (wanted != factor && !make_atlas(wanted)) return 0;
-    if (name_duelist != duelist) {
-        name_duelist = duelist;
-        name_made[0] = name_made[1] = 0;
+    typedef int (*HudName)(int, char *, size_t);
+    HudName override = (HudName)Mods_Find("tag-duel-menu:hud_name_v1");
+    char chosen[64];
+    const char *resolved = which ? HdText_PlayerName() : name;
+    char *cached = which ? name_player : name_opponent;
+    if (override && override(which ? 0 : 1, chosen, sizeof(chosen))) {
+        chosen[sizeof(chosen) - 1] = 0;
+        resolved = chosen;
     }
-    if (which) {
-        const char *player = HdText_PlayerName();
-        if (strcmp(name_player, player)) {
-            strcpy(name_player, player);
-            name_made[1] = 0;
-        }
+    if (strcmp(cached, resolved)) {
+        snprintf(cached, 64, "%s", resolved);
+        name_made[which] = 0;
     }
     if (name_made[which] != generation) {
         name_made[which] = generation;
-        if (!make_name(words, which ? name_player : name, which, &name_width[which])) name_width[which] = 0;
+        if (!make_name(words, cached, which, &name_width[which])) name_width[which] = 0;
     }
     if (!name_width[which]) return 0;
     *atlas_u = name_boxes[which].column * CELL;

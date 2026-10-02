@@ -1,6 +1,7 @@
 /* Game > Deck slots. See deck_menu.h. */
 #include "pc/compat/fs.h"
 #include "deck_menu.h"
+#include "partner_recipes.h"
 #include "pc/platform/button_layout.h"
 #include "pc/platform/menu.h"
 #include "deck_slots.h"
@@ -9,6 +10,7 @@
 #include "types.h"
 #include "game/save_data.h"
 #include "game/build_deck_transition_state.h"
+#include "game/main_menu_selection.h"
 #include "pc/cards/cards.h"
 #include "pc/platform/paths.h"
 #include "pc/platform/platform.h"
@@ -63,7 +65,7 @@ extern u16 D_8009B27C;
 enum { SOUND_MOVE = 6, SOUND_CONFIRM = 7, SOUND_CANCEL = 8, SOUND_BUZZER = 9 };
 
 enum { VIEW_CLOSED, VIEW_LIST, VIEW_CONFIRM, VIEW_MESSAGE };
-enum { ASK_CLEAR };
+enum { ASK_CLEAR, ASK_REPAIR };
 #define MONSTER_TYPE_END 20 /* types 0-19 are monsters, then magic, trap, ritual, equip */
 
 static struct {
@@ -75,7 +77,8 @@ static struct {
     unsigned changes;
 } menu;
 
-static int requested, allowed, holding, item_enabled = -1, shown_rows = DECK_SLOT_COUNT;
+static int requested, requested_edit_slot = -1, edit_after_pick;
+static int allowed, holding, item_enabled = -1, shown_rows = DECK_SLOT_COUNT;
 static unsigned last_poll = 0xffffff00u, previous_bits;
 
 /* --- the decks: a draft beside the save -----------------------------------
@@ -93,6 +96,27 @@ static struct {
     DeckSlot slots[DECK_SLOT_COUNT];
 } draft;
 static unsigned seen_saves, seen_loads;
+static int repair_pending;
+static SaveDataWorkspace *workspace(void);
+
+static struct {
+    int active, ready;
+    unsigned char saved_state[SAVE_DATA_STATE_SIZE];
+    unsigned short result[40];
+    unsigned char *extra;
+    int extra_count;
+} temporary;
+
+int DeckMenu_TemporaryActive(void) { return temporary.active; }
+void DeckMenu_CancelTemporary(void)
+{
+    if (temporary.active)
+        memcpy(&workspace()->state, temporary.saved_state, SAVE_DATA_STATE_SIZE);
+    if (temporary.active && temporary.extra)
+        memcpy(gCard_abExtraChest, temporary.extra, temporary.extra_count);
+    free(temporary.extra); temporary.extra = NULL;
+    temporary.active = temporary.ready = 0;
+}
 
 /* Build Deck asks for a deck as it is entered (DeckMenu_BuildDeckEntry). */
 enum { PICK_NONE, PICK_OPEN, PICK_CHOSEN };
@@ -123,7 +147,8 @@ static const char *identity(int id)
     return name && *name && !strpbrk(name, ",\n\r") ? name : NULL;
 }
 
-static int game_loaded(void) { return workspace()->state.player_deck[0] != 0; }
+static int game_loaded(void) { return workspace()->state.player_deck[0] != 0 || repair_pending; }
+static void reconcile(void);
 
 /* Build Deck, set up (0x40): its step table (duel_transition_step_table.c)
  * waits for input in steps 2 and 3, one per pane; not while the not-ready
@@ -143,6 +168,8 @@ static int build_deck_idle(void)
 static int screen_allowed(int where)
 {
     int mode = D_8009B26C & 0x1F;
+    if (temporary.active) return 0;
+    if (mode == MODE_DUEL && repair_pending && D_8009B26E == 1) return 1;
     /* The main menu shows Campaign, Free Duel... only for a loaded game; a
      * save left in the workspace by a jump to the title is not one. */
     if (where == DECK_MENU_TITLE_MENU || mode == MODE_MENU) return gMain_bMenuID >= 5;
@@ -210,6 +237,34 @@ static void refresh(void)
     changed();
 }
 
+int DeckMenu_SlotInfo(int slot, char *label, size_t size)
+{
+    if (label && size) label[0] = 0;
+    if (slot < 0 || slot >= DECK_SLOT_COUNT || !game_loaded()) return 0;
+    reconcile();
+    describe(slot);
+    if (!draft.slots[slot].used) return 0;
+    if (label && size)
+        snprintf(label, size, "%s", menu.label[slot][0] ? menu.label[slot] : "Unavailable deck");
+    return menu.status[slot] == DECK_OK ? 1 : -1;
+}
+
+int DeckMenu_ActiveSlot(void)
+{
+    if (!game_loaded()) return -1;
+    reconcile();
+    return draft.active;
+}
+
+int DeckMenu_EquipSlot(int slot)
+{
+    if (DeckMenu_SlotInfo(slot, NULL, 0) != 1) return 0;
+    DeckSlots_Use(workspace()->state.player_deck, &draft.slots[slot], trunk, NULL);
+    draft.active = slot;
+    refresh();
+    return 1;
+}
+
 static void keep_cursor_shown(void)
 {
     int rows = shown_rows < 1 ? 1 : shown_rows;
@@ -250,6 +305,7 @@ static void reconcile(void)
     uint32_t code = workspace()->state.duelist_code;
     char path[1024];
     int slot, skipped = 0;
+    if (temporary.active || repair_pending) return;
     if (draft.code != code) {
         memset(&draft, 0, sizeof(draft));
         draft.code = code;
@@ -282,6 +338,16 @@ static void reconcile(void)
             return;
         }
     }
+}
+
+int DeckMenu_CopySlot(int slot, unsigned short out[40])
+{
+    if (!out || slot < 0 || slot >= DECK_SLOT_COUNT || !game_loaded())
+        return 0;
+    reconcile();
+    if (!draft.slots[slot].used) return 0;
+    memcpy(out, draft.slots[slot].cards, sizeof(draft.slots[slot].cards));
+    return 1;
 }
 
 static int store(void)
@@ -327,11 +393,17 @@ void DeckMenu_State(MemoriesState *state)
     MemoriesStateField field = {&draft, sizeof(draft)};
     int loaded = Memories_StateChunk(state, "deck-slots", &field, 1);
     if (Memories_StateLoading(state)) {
+        /* Guest inventory has already been restored by the state loader. */
+        free(temporary.extra); temporary.extra = NULL;
+        temporary.active = temporary.ready = 0;
+        repair_pending = 0;
         if (!loaded) draft.code = 0; /* older state: read the file again */
         else draft.dirty = 1; /* the file may have changed since this snapshot */
         seen_saves = SaveMenu_SaveCount();
         seen_loads = SaveMenu_LoadCount();
         picking = PICK_NONE;
+        requested_edit_slot = -1;
+        edit_after_pick = 0;
         list_after_build_deck = duel_list = duel_pick = 0;
         requested = allowed = holding = 0;
         previous_bits = 0;
@@ -369,6 +441,7 @@ static int chest_left(void)
     const unsigned short *deck = workspace()->state.player_deck;
     int to_list = list_after_build_deck;
     list_after_build_deck = 0;
+    if (repair_pending) return 0;
     if (!Settings_Get(SET_DECK_SLOTS) || !game_loaded()) return 0;
     if (draft.code == (uint32_t)workspace()->state.duelist_code && draft.active >= 0 && draft.active < DECK_SLOT_COUNT && deck_complete()) {
         DeckSlot *slot = &draft.slots[draft.active];
@@ -386,12 +459,22 @@ static int chest_left(void)
 
 void DeckMenu_BuildDeckLeft(void)
 {
+    if (temporary.active) {
+        memcpy(temporary.result, workspace()->state.player_deck, sizeof(temporary.result));
+        memcpy(&workspace()->state, temporary.saved_state, SAVE_DATA_STATE_SIZE);
+        if (temporary.extra) memcpy(gCard_abExtraChest, temporary.extra, temporary.extra_count);
+        free(temporary.extra); temporary.extra = NULL;
+        temporary.active = 0;
+        temporary.ready = 1;
+        return;
+    }
     /* Entered again, to the list, instead of where it returns to. */
     if (chest_left()) D_8009B26C = MODE_BUILD_DECK;
 }
 
 int DeckMenu_BuildDeckEntry(void)
 {
+    if (temporary.active) return 0;
     duel_pick = 0;
     return chest_entry();
 }
@@ -428,6 +511,7 @@ static void back_to_list(void)
 
 static void cancel_pick(void)
 {
+    edit_after_pick = 0;
     if (duel_pick) {
         /* Before a duel there is nowhere to go back to: the deck stays. */
         picking = PICK_CHOSEN;
@@ -441,8 +525,14 @@ static void cancel_pick(void)
 
 static void choose(void)
 {
+    int edit = edit_after_pick;
+    edit_after_pick = 0;
     picking = PICK_CHOSEN;
     DeckMenu_Close();
+    if (edit) {
+        D_8009B269 = MODE_MENU;
+        Main_ApplyMenuSelection(MAIN_MENU_SELECTION_BUILD_DECK);
+    }
 }
 
 /* The pad in the layout the game gets: View > Japanese buttons exchanges
@@ -463,11 +553,17 @@ static void show(void)
         return;
     }
     reconcile();
+    if (requested_edit_slot >= 0) {
+        picking = PICK_OPEN;
+        edit_after_pick = 1;
+    }
     SaveSlots_StateName((const unsigned char *)&workspace()->state, name, sizeof(name));
-    snprintf(menu.title, sizeof(menu.title), picking == PICK_OPEN ? "Build Deck: which deck? (%s)" : "Decks: %s",
+    snprintf(menu.title, sizeof(menu.title), repair_pending ? "Save repaired deck (%s)" : picking == PICK_OPEN ? "Build Deck: which deck? (%s)" : "Decks: %s",
              name[0] ? name : "(no name)");
     refresh();
-    menu.cursor = draft.active >= 0 ? draft.active : 0;
+    menu.cursor = requested_edit_slot >= 0 ? requested_edit_slot
+                                           : (draft.active >= 0 ? draft.active : 0);
+    requested_edit_slot = -1;
     keep_cursor_shown();
     menu.view = VIEW_LIST;
     changed();
@@ -488,12 +584,189 @@ void DeckMenu_Request(void)
     if (Settings_Get(SET_DECK_SLOTS)) requested = 1;
 }
 
+void DeckMenu_RequestEditSlot(int slot)
+{
+    if (!Settings_Get(SET_DECK_SLOTS) || slot < 0 || slot >= DECK_SLOT_COUNT)
+        return;
+    requested_edit_slot = slot;
+    requested = 1;
+}
+
+int DeckMenu_BeginTemporary(const unsigned short cards[40])
+{
+    int i;
+    if (temporary.active || !cards || !game_loaded()) return 0;
+    for (i = 0; i < 40; i++) if (!Cards_Valid(cards[i])) return 0;
+    reconcile();
+    temporary.extra_count = gCard_nCount + 1;
+    temporary.extra = malloc(temporary.extra_count);
+    if (!temporary.extra) return 0;
+    memcpy(temporary.extra, gCard_abExtraChest, temporary.extra_count);
+    memcpy(temporary.saved_state, &workspace()->state, SAVE_DATA_STATE_SIZE);
+    memcpy(workspace()->state.player_deck, cards, 80);
+    /* Start with the player's total owned stock, then reserve copies held
+     * by the partner. Borrow only the shortfall; never count held partner
+     * cards a second time as available chest copies. Rebuild on each entry. */
+    for (i = 0; i < 40; i++) {
+        int id = ((SaveDataState *)temporary.saved_state)->player_deck[i];
+        unsigned char *count = trunk(NULL, id);
+        if (count && *count < DECK_SLOT_TRUNK_MAX) (*count)++;
+    }
+    for (i = 0; i < 40; i++) {
+        unsigned char *count = trunk(NULL, cards[i]);
+        if (count && *count) (*count)--;
+    }
+    temporary.active = 1; temporary.ready = 0;
+    requested = 0; picking = PICK_NONE;
+    DeckMenu_Close();
+    Main_ApplyMenuSelection(MAIN_MENU_SELECTION_BUILD_DECK);
+    D_8009B269 = MODE_FREE_DUEL;
+    return 1;
+}
+
+int DeckMenu_TakeTemporary(unsigned short cards[40])
+{
+    if (!temporary.ready) return 0;
+    temporary.ready = 0;
+    memcpy(cards, temporary.result, 80);
+    return 1;
+}
+
+/* Partner recipes live beside, never inside, the player's deck slots. */
+static PartnerRecipes partners;
+static uint32_t partners_owner;
+static int partners_loaded;
+
+static int partner_path(char *path, size_t size)
+{
+    char relative[80];
+    snprintf(relative, sizeof(relative), "decks/%08X-partners.bin",
+             (unsigned)workspace()->state.duelist_code);
+    return Paths_User(path, size, relative);
+}
+
+static void read_partners(void)
+{
+    char path[1024];
+    uint32_t code = workspace()->state.duelist_code;
+    if (partners_loaded && partners_owner == code) return;
+    memset(&partners, 0, sizeof(partners));
+    if (!partner_path(path, sizeof(path)) && PartnerRecipes_Read(path, code, &partners) < 0)
+        fprintf(stderr, "memories-pc: partner recipes unavailable: invalid or unsupported file; original retained\n");
+    partners_owner = code; partners_loaded = 1;
+}
+
+int DeckMenu_PartnerRecipeInfo(int slot, char *name, size_t size)
+{
+    DeckSlot deck;
+    char label[64];
+    int available;
+    read_partners();
+    available = PartnerRecipes_Get(&partners, slot, &deck, label);
+    if (name && size) snprintf(name, size, "%s", label);
+    return available;
+}
+
+int DeckMenu_CopyPartnerRecipe(int slot, unsigned short cards[40])
+{
+    DeckSlot deck;
+    read_partners();
+    if (!PartnerRecipes_Get(&partners, slot, &deck, NULL)) return 0;
+    memcpy(cards, deck.cards, sizeof(deck.cards));
+    return 1;
+}
+
+int DeckMenu_SavePartnerRecipe(int slot, const char *name, const unsigned short cards[40])
+{
+    char path[1024];
+    read_partners();
+    if (partner_path(path, sizeof(path))) return 0;
+    return PartnerRecipes_Save(path, workspace()->state.duelist_code, &partners, slot, name, cards);
+}
+
+int DeckMenu_EquipOwnedRecipe(const unsigned short cards[40], int apply)
+{
+    unsigned short ready[40] = {0};
+    unsigned short ids[80];
+    int available[80], need[80] = {0}, old[80] = {0};
+    int i, j, n = 0, missing = 0;
+    if (temporary.active) return -1;
+    for (i = 0; i < 80; i++) {
+        int id = i < 40 ? workspace()->state.player_deck[i] : cards[i - 40];
+        if (!id && i < 40) continue;
+        if (!Cards_Valid(id)) return -1;
+        for (j = 0; j < n && ids[j] != id; j++);
+        if (j == n) {
+            unsigned char *count = trunk(NULL, id);
+            if (!count) return -1;
+            ids[n] = id; available[n++] = *count;
+        }
+        if (i < 40) { old[j]++; available[j]++; }
+    }
+    for (i = 0; i < 40; i++) {
+        for (j = 0; j < n && ids[j] != cards[i]; j++);
+        if (need[j] < available[j] && need[j] < 3) {
+            need[j]++; ready[i] = cards[i];
+        } else missing++;
+    }
+    for (j = 0; j < n; j++)
+        if (available[j] - need[j] > DECK_SLOT_TRUNK_MAX) return -1;
+    if (!apply) return missing;
+    reconcile();
+    /* Detached until the player explicitly picks a destination after repair. */
+    draft.active = -1;
+    repair_pending = missing > 0;
+    for (j = 0; j < n; j++) *trunk(NULL, ids[j]) = available[j] - need[j];
+    memcpy(workspace()->state.player_deck, ready, 80);
+    return missing;
+}
+
+int DeckMenu_SavePlayerRecipe(int slot)
+{
+    if (slot < 0 || slot >= 10 || !deck_complete() || temporary.active) return 0;
+    draft.slots[slot].used = 1;
+    memcpy(draft.slots[slot].cards, workspace()->state.player_deck, 80);
+    draft.active = slot; draft.dirty = 1;
+    return store() == 0;
+}
+
+int DeckMenu_SavePlayerRecipeCards(int slot, const unsigned short cards[40])
+{
+    int i;
+    if (slot < 0 || slot >= 10 || temporary.active) return 0;
+    for (i = 0; i < 40; i++) if (!Cards_Valid(cards[i])) return 0;
+    reconcile();
+    draft.slots[slot].used = 1;
+    memcpy(draft.slots[slot].cards, cards, 80);
+    draft.dirty = 1;
+    return store() == 0;
+}
+
+int DeckMenu_RepairSaveGate(void)
+{
+    if (!repair_pending) return 0;
+    if (menu.view == VIEW_CLOSED) {
+        requested = 1;
+        snprintf(menu.title, sizeof(menu.title), "Save repaired deck in a player slot");
+    }
+    return 1;
+}
+
 /* Cross on a slot: the active one; an empty one becomes a copy of the deck;
  * another deck is used, the one it replaces staying in its own slot. */
 static void use(int slot)
 {
     char text[160], name[64];
     int card, count, result;
+    if (repair_pending && D_8009B26E == 1) {
+        if (draft.slots[slot].used) {
+            menu.ask = ASK_REPAIR; menu.choice = 1;
+            menu.view = VIEW_CONFIRM; changed();
+        } else if (DeckMenu_SavePlayerRecipe(slot)) {
+            repair_pending = 0; DeckMenu_Close();
+        } else message(0, "Unable to save the repaired deck. Choose another slot.");
+        return;
+    }
     reconcile();
     if (slot == draft.active) {
         if (picking == PICK_OPEN) {
@@ -595,7 +868,11 @@ static void press(unsigned pressed)
             menu.view = VIEW_LIST;
             changed();
         } else if (pressed & (PAD_CROSS | PAD_START)) {
-            clear(slot);
+            if (menu.ask == ASK_REPAIR) {
+                if (DeckMenu_SavePlayerRecipe(slot)) {
+                    repair_pending = 0; DeckMenu_Close();
+                } else message(0, "Unable to save the repaired deck.");
+            } else clear(slot);
         }
         return;
     default:
@@ -614,7 +891,7 @@ static void press(unsigned pressed)
         use(slot);
     } else if (pressed & PAD_TRIANGLE) {
         /* The active deck is the game's: it cannot go. */
-        if (draft.slots[slot].used && slot != draft.active) ask(ASK_CLEAR);
+        if (!repair_pending && draft.slots[slot].used && slot != draft.active) ask(ASK_CLEAR);
         else SD_SEPlayFull(SOUND_BUZZER);
     }
 }
@@ -623,7 +900,7 @@ void DeckMenu_Poll(int where)
 {
     unsigned bits, pressed;
     last_poll = Memories_PresentedFrames();
-    allowed = Settings_Get(SET_DECK_SLOTS) && game_loaded() && !SaveMenu_Active() && screen_allowed(where);
+    allowed = (Settings_Get(SET_DECK_SLOTS) || repair_pending) && game_loaded() && !SaveMenu_Active() && screen_allowed(where);
     bits = pad_bits();
     pressed = bits & ~previous_bits;
     previous_bits = bits;
@@ -803,7 +1080,10 @@ void DeckMenu_Draw(MenuCanvas *canvas, int *x, int *y, int *w, int *h)
     if (menu.top > 0) text(canvas, px + pw - 30 * s, py + 20 * s, "^", COLOUR_DIM);
     if (menu.top + rows < DECK_SLOT_COUNT) text(canvas, px + pw - 18 * s, py + 20 * s, "v", COLOUR_DIM);
     /* The slots take the exchanged pad (pad_bits), so the hints name its buttons. */
-    if (jp)
+    if (repair_pending)
+        text(canvas, px + 14 * s, py + ph - 16 * s,
+             jp ? "Circle: save repaired deck   Cross: back" : "Cross: save repaired deck   Circle: back", COLOUR_DIM);
+    else if (jp)
         text(canvas, px + 14 * s, py + ph - 16 * s,
              picking == PICK_OPEN ? "Circle: edit this deck (an empty slot: a copy of yours)   Triangle: clear   Cross: back"
                                   : "Circle: use (an empty slot: a copy of yours)   Triangle: clear   Cross: close",
@@ -822,7 +1102,7 @@ void DeckMenu_Draw(MenuCanvas *canvas, int *x, int *y, int *w, int *h)
         int bw = 120 * s, bh = 108 * s, bx0 = px + 24 * s, by = py + (ph - bh) / 2, cw = pw - 48 * s, bx;
         const char *labels[2] = {"Yes", "No"};
         frame_box(canvas, bx0, by, cw, bh, s);
-        snprintf(line, sizeof(line), "Clear slot %d?", menu.cursor + 1);
+        snprintf(line, sizeof(line), menu.ask == ASK_REPAIR ? "Overwrite player slot %d with the repaired deck?" : "Clear slot %d?", menu.cursor + 1);
         centred(canvas, bx0, cw, by + 30 * s, line, COLOUR_TEXT);
         bx = bx0 + (cw - 2 * bw - 16 * s) / 2;
         for (i = 0; i < 2; i++) {
