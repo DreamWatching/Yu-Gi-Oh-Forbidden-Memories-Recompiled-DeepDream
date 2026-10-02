@@ -14,10 +14,18 @@ personal saves are not included. It is not an official upstream release.
 
 ## A look inside
 
-![Native single-duel Battle Rules menu with character portrait and textured scrollbar](docs/screenshots/community-duel-mods/beta5-free-duel-rules.png)
+| Tag Duel setup | Guardian Star Face-off |
+|---|---|
+| [![Partner and rivals in the native Tag Duel Battle Rules menu](docs/screenshots/community-duel-mods/tag-duel-rules.png)](docs/screenshots/community-duel-mods/tag-duel-rules.png) | [![Yugi and Teana picking Guardian Star cards from a circular pile](docs/screenshots/community-duel-mods/guardian-star-face-off.png)](docs/screenshots/community-duel-mods/guardian-star-face-off.png) |
+| Choose partner control, signature decks and battle rules. | Draw and reveal Guardian Stars to decide who starts. |
 
-*The single-duel rules screen uses the game's font, portraits, stone borders and
-scrollbar. Tag Duels adds partner and rival selection to the same Free Duel flow.*
+| In-duel portraits | Single Duel options |
+|---|---|
+| [![Bright active Yugi portrait and waiting Teana portrait beside the Mountain field](docs/screenshots/community-duel-mods/duel-portraits.png)](docs/screenshots/community-duel-mods/duel-portraits.png) | [![Native single-duel Battle Rules menu with portrait and textured scrollbar](docs/screenshots/community-duel-mods/beta5-free-duel-rules.png)](docs/screenshots/community-duel-mods/beta5-free-duel-rules.png) |
+| Active and waiting portraits show names, controls and card counts. | Customize solo duels through the same native menu design. |
+
+*Click any screenshot to open it at full size. Menus use the game's font,
+portraits, stone borders, card artwork and scrollbar.*
 
 ## What's included
 
