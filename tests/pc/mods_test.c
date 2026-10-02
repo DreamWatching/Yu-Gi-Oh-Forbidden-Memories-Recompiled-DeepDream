@@ -4,6 +4,7 @@
  * sector arithmetic. */
 #define _POSIX_C_SOURCE 200809L
 #include "pc/mods/mods.h"
+#include "pc/cards/fusion_helper.h"
 #include "pc/mods/events.h"
 #include "pc/mods/exports.h"
 #include "pc/mods/json.h"
@@ -30,6 +31,9 @@
 int Log_Enabled(int channel) { (void)channel; return 0; }
 int Log_Wanted(int channel) { (void)channel; return 0; }
 void Log_Printf(int channel, const char *format, ...) { (void)channel; (void)format; }
+/* Data/loader cases do not draw a game viewport. Fail if that changes. */
+void FusionHelper_GetViewport(int *x, int *y, int *w, int *h)
+{ (void)x; (void)y; (void)w; (void)h; abort(); }
 unsigned short Platform_Pad(int port) { (void)port; return 0; }
 int Symbols_Add(const SymbolsEntry *entries, size_t count) { (void)entries; (void)count; return 0; }
 #ifndef MODS_REAL_DISC
