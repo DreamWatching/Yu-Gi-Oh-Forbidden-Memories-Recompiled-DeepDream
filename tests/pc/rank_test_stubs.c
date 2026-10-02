@@ -2,6 +2,10 @@
  * own records (rank_test.c defines those). The rank test never runs these:
  * the linker only needs the names, so no game header is included here. */
 #include <stdlib.h>
+#include "pc/mods/events.h"
+
+/* Compare stock arithmetic with no optional rank projection installed. */
+void *Mods_Find(const char *qualified) { (void)qualified; return NULL; }
 
 #define STUB(name) void name(void); void name(void) { abort(); }
 

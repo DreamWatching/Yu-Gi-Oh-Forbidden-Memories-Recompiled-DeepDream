@@ -8,6 +8,19 @@ u8 D_801D0000[sizeof(SaveDataWorkspace)];
 /* Rendering and input are outside these draft tests. */
 u8 D_8009B269, D_8009B26C, D_8009B26E, gMain_bMenuID, gDuel_bEffectState;
 u16 D_8009B27C;
+/* The expanded controller also links temporary NPC editing. These draft-only
+ * cases must not enter that flow; its behavior has separate sandbox tests. */
+int gCard_nCount = 722;
+unsigned char gCard_abExtraChest[723];
+void Main_ApplyMenuSelection(MainMenuSelection selection)
+{ (void)selection; abort(); }
+int PartnerRecipes_Read(const char *path, uint32_t owner, PartnerRecipes *out)
+{ (void)path; (void)owner; (void)out; abort(); }
+int PartnerRecipes_Get(const PartnerRecipes *store, int slot, DeckSlot *deck, char name[64])
+{ (void)store; (void)slot; (void)deck; (void)name; abort(); }
+int PartnerRecipes_Save(const char *path, uint32_t owner, PartnerRecipes *store,
+                       int slot, const char *name, const unsigned short cards[40])
+{ (void)path; (void)owner; (void)store; (void)slot; (void)name; (void)cards; abort(); }
 BuildDeckTransitionState *gBuildDeck_pState; /* controlled by the transition tests below */
 u32 D_801D9000[1];
 s32 gDuel_adwCardStats[1];
