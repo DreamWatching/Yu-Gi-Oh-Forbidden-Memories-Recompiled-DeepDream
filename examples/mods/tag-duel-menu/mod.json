@@ -1,0 +1,23 @@
+{
+    "id": "tag-duel-menu",
+    "name": "Tag Duels",
+    "version": "0.11.0-beta.3",
+    "author": "deepdream and Codex",
+    "description": "Two-versus-two Free Duels with separate decks and hands, shared team Life Points and field, rotating teammates and team-based ranking. Choose a signature, edited or recipe partner deck; let CPU, Player 1 or Player 2 control the partner. Tag Rewards is a default-on setting that mixes both rivals' drop pools and reserves the final drop for rare spoils. Requires Duel Options.",
+    "min_api": 4,
+    "game": "slus_01411",
+    "library": "tag-duel-menu",
+    "enabled": false,
+    "requires": [
+        "duel-options"
+    ],
+    "settings": [
+        {
+            "key": "tag_rewards",
+            "label": "Tag Rewards",
+            "type": "bool",
+            "default": 1,
+            "description": "Roll rewards from both opponents and reserve the last configured drop for a rare card. Disable to use the native reward policy; inventory safety remains active."
+        }
+    ]
+}

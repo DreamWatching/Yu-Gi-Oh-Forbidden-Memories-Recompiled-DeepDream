@@ -1,0 +1,21 @@
+name: Community Duel Mods checks
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows-logic:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/cache@v4
+        with:
+          path: tmp/pc/tools
+          key: tag-duels-tools-${{ hashFiles('tools/pc/fetch_tools.py') }}
+      - run: python tools/pc/run_tag_release_checks.py
+      # No discs, extracted assets, personal saves or upload credentials in CI.

@@ -1,0 +1,11 @@
+{
+    "id": "duel-options",
+    "name": "Duel Options",
+    "version": "0.1.0-beta.4",
+    "author": "deepdream and Codex",
+    "description": "Customize solo and tag Free Duels using native menus: starting Life Points, named or random terrain, five/twenty-card CPU search and Guardian Star Face-off to choose who starts. Includes named player/partner recipes and safe deck preparation. Solo play works without Tag Duels; other mods can register additional rules.",
+    "min_api": 4,
+    "game": "slus_01411",
+    "library": "duel-options",
+    "enabled": false
+}

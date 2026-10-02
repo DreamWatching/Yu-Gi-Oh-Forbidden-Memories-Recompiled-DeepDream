@@ -1,0 +1,11 @@
+{
+    "id": "new-card-markers",
+    "name": "NEW Card Markers",
+    "version": "1.0.0",
+    "author": "deepdream and Codex",
+    "description": "Track every distinct newly acquired reward card during the loaded session, beyond the native 16-card recent list. NEW appears only when the card was absent from both chest and equipped deck before the award. Works independently in solo and tag play, without changing drops or card quantities. Extra history is not stored in normal campaign saves.",
+    "min_api": 4,
+    "game": "slus_01411",
+    "library": "new-card-markers",
+    "enabled": false
+}

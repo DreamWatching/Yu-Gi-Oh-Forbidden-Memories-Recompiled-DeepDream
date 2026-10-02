@@ -1,0 +1,11 @@
+{
+    "id": "duel-portraits",
+    "name": "Duel Portraits",
+    "version": "0.1.0-beta.2",
+    "author": "deepdream and Codex",
+    "description": "Show active and waiting duelists in the widescreen margins with native portraits, loaded-save names, control labels and hand/deck counts. Yugi changes pose between waiting and active turns; tag portraits follow teammate rotation. Appears when Life Points begin filling, not during deck editing. Presentation only; independent of Tag Duels.",
+    "min_api": 4,
+    "game": "slus_01411",
+    "library": "duel-portraits",
+    "enabled": false
+}

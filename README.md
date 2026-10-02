@@ -1,3 +1,25 @@
+# Forbidden Memories — DeepDream Community Duel Mods
+
+This branch adds four optional mods by **deepdream and Codex**: **Duel Options**,
+**Tag Duels** (including configurable Tag Rewards), **Duel Portraits** and
+**NEW Card Markers**. It is a community beta, not an official Unchiga release.
+
+The tested **beta 5** requires the companion host based on **v0.1.4-preview.2**,
+commit `759465ed4986714f47513da648087c9f5567d18a`. The required support changes
+are included in this branch; stock, Linux and future-host compatibility are
+not certified. Supply your own USA SLUS-01411 disc; no disc/assets/saves included.
+
+- [Every mod and option](notes/community-duel-mods/MOD_GUIDE.md)
+- [Build and run the regression checks](notes/community-duel-mods/BUILD.md)
+- [Maintainer review map and validation](notes/community-duel-mods/MAINTAINER_REVIEW.md)
+- [Publishing guide](notes/community-duel-mods/PUBLISHING.md)
+- [Original project](https://github.com/Unchiga/Yu-Gi-Oh-Forbidden-Memories-Recompiled)
+
+The original upstream README follows. Its download/build instructions describe
+upstream; use the community guide above for this beta.
+
+---
+
 # Yu-Gi-Oh! Forbidden Memories Recompiled
 
 **Yu-Gi-Oh! Forbidden Memories** (PS1, USA) rebuilt from its decompiled source as a
